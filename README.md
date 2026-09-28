@@ -1,7 +1,3 @@
-# Dynamische_Programmiersprachen
+# Konzepte dynamischer Programmiersprachen (Python) | FOM Hochschulzentrum Düsseldorf | B.Sc Wirtschaftsinformatik
 
-menu = { 
-    "Latte" : "5 Euros",
-    "Espresso" : "3 Euros", 
-    "Capuccino" : "3.5 Euros", 
-}
+Repo für die Aufgabe "Coffee Machine" innerhalb des Moduls.
