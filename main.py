@@ -1,11 +1,13 @@
+# TASK 1
+
 import time
 
 machine_currency = "€"
 
 menu = {
-    "Latte": 5.0,
-    "Espresso": 3.0,
-    "Cappuccino": 4.5,
+    "(1) Latte": 5.0,
+    "(2) Espresso": 3.0,
+    "(3) Cappuccino": 4.5,
 }
 
 def display_menu():
@@ -13,19 +15,22 @@ def display_menu():
         print(f"{item}: ${price:.2f}{machine_currency}")
 
     order = input("What would you like to order?\n")
-    order = order[0].upper() + order[1:].lower()  # Auto-adjusts user order to match menu notation
-    if order == "Exit":
+    if order == "exit":
         exit()
-    elif order not in menu:
+    try:
+        return list(menu)[int(order)-1] # check if order is in menu
+    except:
         print("Invalid order. Please try again.")
         return display_menu()
-    return order
 
 def pour_coffee(order):
-    print(f"Pouring {order}...")
+    item = order[order.find(" ")+1:]
+    print(f"Pouring {item}...")
     time.sleep(3)
-    print(f"{order} is ready!")
+    print(f"{item} is ready!")
 
 while True:
     pour_coffee(display_menu())
     time.sleep(2)
+
+# TASK 1
