@@ -1,8 +1,9 @@
-# TASK 1
+"""Simple coffee machine ordering script."""
 
+import sys
 import time
 
-machine_currency = "€"
+MACHINE_CURRENCY = "€"
 
 menu = {
     "(1) Latte": 5.0,
@@ -11,19 +12,21 @@ menu = {
 }
 
 def display_menu():
+    """Display menu and return the selected item."""
     for item, price in menu.items():
-        print(f"{item}: ${price:.2f}{machine_currency}")
+        print(f"{item}: ${price:.2f}{MACHINE_CURRENCY}")
 
     order = input("What would you like to order?\n")
     if order == "exit":
-        exit()
+        sys.exit()
     try:
-        return list(menu)[int(order)-1] # check if order is in menu
-    except:
+        return list(menu)[int(order) - 1]  # check if order is in menu
+    except (ValueError, IndexError):
         print("Invalid order. Please try again.")
         return display_menu()
 
 def pour_coffee(order):
+    """Simulate pouring the selected coffee."""
     item = order[order.find(" ")+1:]
     print(f"Pouring {item}...")
     time.sleep(3)
