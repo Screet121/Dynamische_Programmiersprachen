@@ -1,0 +1,29 @@
+[project]
+name = "coffee-machine"
+version = "0.1.0"
+description = "Coffee Machine - Konzepte dynamischer Programmiersprachen (FOM)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.pylint.main]
+py-version = "3.12"
+
+[tool.pylint.format]
+max-line-length = 88
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+exclude = ['^\.venv/', '^build/']
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+omit = ["tests/*"]

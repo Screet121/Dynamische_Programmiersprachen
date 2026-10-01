@@ -1,0 +1,2 @@
+# Runtime dependencies
+# The app currently only uses the standard library (tkinter).
