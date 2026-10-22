@@ -1,12 +1,17 @@
-# TASK 1
-
 import time
 
 machine_currency = "€"
-cashDrawer = []
 watertank = 2000
 coffeeStorage = 500
 oatMilkTank = 1000
+
+cashDrawer = {
+    0.10: 0,
+    0.20: 0,
+    0.50: 0,
+    1.00: 0,
+    2.00: 0,
+}
 
 menu = {
     "(1) Latte": {
@@ -78,7 +83,8 @@ def pay_coffee(order):
             print(f"{coin}: {value:}€")
 
         coin = input("Throw in a coin: ")
-        cashDrawer.append(coins[list(coins)[int(coin) - 1]])
+        cashDrawer[(coins[list(coins)[int(coin) - 1]])] += 1
+        print(cashDrawer)
         if coin == "exit":
             return False
         selected_coin = list(coins)[int(coin) - 1]
@@ -89,7 +95,7 @@ def pay_coffee(order):
         return True
 
 def check_ingredients(order):
-        global watertank, coffeeStorage, oatMilkTank#
+        global watertank, coffeeStorage, oatMilkTank
 
         recipe = menu[order]["recipe"]
         if (
@@ -97,7 +103,7 @@ def check_ingredients(order):
             and coffeeStorage < recipe['coffee'] 
             and oatMilkTank < recipe['oat_milk']
         ):
-            print("Insufficient ingrediens!")
+            print("Insufficient ingredients!")
             print(watertank, coffeeStorage, oatMilkTank)
             return False
 
@@ -109,5 +115,3 @@ def check_ingredients(order):
 while True:
     pour_coffee(display_menu())
     time.sleep(2)
-
-# TASK 1
