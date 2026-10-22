@@ -89,21 +89,22 @@ def pay_coffee(order):
         return True
 
 def check_ingredients(order):
-        global watertank, coffeeStorage, oatMilkTank
-        if (
-            watertank >= menu[order]['recipe']['water'] 
-            and coffeeStorage >= menu[order]['recipe']['coffee'] 
-            and oatMilkTank >= menu[order]['recipe']['oat_milk']
-        ):
+        global watertank, coffeeStorage, oatMilkTank#
 
-            watertank -= menu[order]['recipe']['water']
-            coffeeStorage -= menu[order]['recipe']['coffee']
-            oatMilkTank -= menu[order]['recipe']['oat_milk']
-            print(watertank, coffeeStorage, oatMilkTank)
-            return True
-        else:
+        recipe = menu[order]["recipe"]
+        if (
+            watertank < recipe['water'] 
+            and coffeeStorage < recipe['coffee'] 
+            and oatMilkTank < recipe['oat_milk']
+        ):
             print("Insufficient ingrediens!")
+            print(watertank, coffeeStorage, oatMilkTank)
             return False
+
+        watertank -= recipe['water']
+        coffeeStorage -= recipe['coffee']
+        oatMilkTank -= recipe['oat_milk']
+        return True
 
 while True:
     pour_coffee(display_menu())
