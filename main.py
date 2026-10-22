@@ -26,11 +26,39 @@ def display_menu():
 
 
 def pour_coffee(order):
-    item = order[order.find(" ") + 1 :]
-    print(f"Pouring {item}...")
-    time.sleep(3)
-    print(f"{item} is ready!")
+    if pay_coffee(order):
+        item = order[order.find(" ") + 1 :]
+        print(f"Pouring {item}...")
+        time.sleep(3)
+        print(f"{item} is ready!")
+    else:
+        print("Payment was not succesful")
 
+def pay_coffee(order):
+    coins = {
+        "(1) 10 Cent": 0.10,
+        "(2) 20 Cent": 0.20,
+        "(3) 50 Cent": 0.50,
+        "(4) 1 Euro": 1.00,
+        "(5) 2 Euro": 2.00,
+    }
+    price = menu[order]
+    money_payed = 0
+    print(f"Yout total is: {price:.2f}€")
+
+    while money_payed < price:
+        for coin, value in coins.items():
+         print(f"{coin}: {value:}€")
+
+        coin = input("Throw in a coin: ")
+        if coin == "exit":
+            return False
+        selected_coin = list(coins)[int(coin)-1]
+        money_payed += coins[selected_coin]
+
+    if(money_payed > price):
+        print(f"You get: {(money_payed-price):.2f}€ back")
+        return True
 
 while True:
     pour_coffee(display_menu())
