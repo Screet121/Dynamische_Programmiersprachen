@@ -57,7 +57,7 @@ def pay_coffee(order):
         money_payed += coins[selected_coin]
 
     if(money_payed > price):
-        print(f"Sie bekommen: {(money_payed-price):.2f} zurück")
+        print(f"You get: {(money_payed-price):.2f}€ back")
         return True
 
 while True:
