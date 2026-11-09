@@ -2,6 +2,9 @@
 __pycache__/
 *.py[cod]
 
+#IDEs
+./.idea
+
 # Test, coverage, and type-checking output
 .pytest_cache/
 .mypy_cache/

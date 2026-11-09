@@ -13,15 +13,27 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import main  # pylint: disable=wrong-import-position
 
 
-class OrderingTests(unittest.TestCase):
-    """Check input boundaries and payment without interactive input or sleeps."""
+class MachineTestCase(unittest.TestCase):
+    """Isolate machine state and replace interactive output and sleeps."""
 
     def setUp(self):
         self.output = io.StringIO()
         self.enterContext(redirect_stdout(self.output))
+        for name, value in (
+            ("WATER_TANK", 2000),
+            ("COFFEE_STORAGE", 500),
+            ("OAT_MILK_TANK", 1000),
+            ("EARNED_CENTS", 0),
+        ):
+            self.enterContext(patch.object(main, name, value))
+        self.enterContext(patch.object(main.time, "sleep"))
         drawer = patch.object(main, "CASH_DRAWER", dict.fromkeys(main.CASH_DRAWER, 0))
         drawer.start()
         self.addCleanup(drawer.stop)
+
+
+class OrderingTests(MachineTestCase):
+    """Check input boundaries and payment choices."""
 
     def test_menu_rejects_invalid_input_without_recursion(self):
         """Many invalid entries must retry without exhausting the call stack."""
@@ -56,10 +68,10 @@ class OrderingTests(unittest.TestCase):
         for selection, value in enumerate(main.CASH_DRAWER, start=1):
             with self.subTest(value=value):
                 main.CASH_DRAWER = dict.fromkeys(main.CASH_DRAWER, 0)
-                count = 500 // round(value * 100)
+                count = 500 // value
                 # EUR 5 is not divisible by EUR 2; add EUR 1 for that case.
                 entries = [str(selection)] * count
-                if value == 2:
+                if value == 200:
                     entries.append("4")
                 with patch("builtins.input", side_effect=entries):
                     self.assertTrue(main.pay_coffee("(1) Latte"))
@@ -74,14 +86,158 @@ class OrderingTests(unittest.TestCase):
         ):
             main.pour_coffee("(2) Espresso")
         self.assertIn("Espresso is ready!", self.output.getvalue())
-        self.assertEqual(main.CASH_DRAWER[1.0], 3)
+        self.assertEqual(main.CASH_DRAWER[100], 3)
 
     def test_overpayment_still_succeeds(self):
         """Excess payment must still succeed and display change."""
+        main.CASH_DRAWER[100] = 1
         with patch("builtins.input", side_effect=["5", "5"]):
             self.assertTrue(main.pay_coffee("(2) Espresso"))
         self.assertIn("1.00", self.output.getvalue())
-        self.assertEqual(main.CASH_DRAWER[2.0], 2)
+        self.assertEqual(main.CASH_DRAWER[200], 2)
+        self.assertEqual(main.CASH_DRAWER[100], 0)
+        self.assertEqual(main.EARNED_CENTS, 300)
+
+
+class TransactionTests(MachineTestCase):
+    """Check resource accounting and successful or refused transactions."""
+
+    def snapshot(self):
+        """Capture inventory, cash and earnings for failed-order assertions."""
+        return (
+            main.WATER_TANK,
+            main.COFFEE_STORAGE,
+            main.OAT_MILK_TANK,
+            main.CASH_DRAWER.copy(),
+            main.EARNED_CENTS,
+        )
+
+    def test_cancelled_and_underpaid_orders_preserve_state(self):
+        """Refund partial payments without consuming stock or earning money."""
+        for command in ("cancel", "exit", "done"):
+            with self.subTest(command=command):
+                before = self.snapshot()
+                with patch("builtins.input", side_effect=["4", command]):
+                    main.pour_coffee("(2) Espresso")
+                self.assertEqual(self.snapshot(), before)
+                self.assertIn("Refund: 1.00", self.output.getvalue())
+
+    def test_off_during_payment_preserves_state(self):
+        """Shutdown must return inserted coins and leave inventory untouched."""
+        before = self.snapshot()
+        with patch("builtins.input", side_effect=["4", "off"]):
+            with self.assertRaises(SystemExit):
+                main.pour_coffee("(2) Espresso")
+        self.assertEqual(self.snapshot(), before)
+
+    def test_interrupted_payment_preserves_state(self):
+        """Input interruption must refund coins before shutting down."""
+        for error in (EOFError, KeyboardInterrupt):
+            with self.subTest(error=error):
+                before = self.snapshot()
+                with patch("builtins.input", side_effect=["4", error]):
+                    with self.assertRaises(SystemExit):
+                        main.pour_coffee("(2) Espresso")
+                self.assertEqual(self.snapshot(), before)
+
+    def test_unavailable_change_refuses_order(self):
+        """An empty drawer cannot change two EUR 2 coins for an Espresso."""
+        before = self.snapshot()
+        with patch("builtins.input", side_effect=["5", "5"]):
+            main.pour_coffee("(2) Espresso")
+        self.assertEqual(self.snapshot(), before)
+        self.assertIn("Refund: 4.00", self.output.getvalue())
+        self.assertNotIn("Pouring", self.output.getvalue())
+
+    def test_each_ingredient_shortage_refuses_before_payment(self):
+        """One insufficient resource must refuse an order before collecting coins."""
+        for resource in ("WATER_TANK", "COFFEE_STORAGE", "OAT_MILK_TANK"):
+            with self.subTest(resource=resource), patch.object(main, resource, 0):
+                before = self.snapshot()
+                with patch("builtins.input") as prompt:
+                    main.pour_coffee("(1) Latte")
+                prompt.assert_not_called()
+                self.assertEqual(self.snapshot(), before)
+
+    def test_availability_check_does_not_deduct_stock(self):
+        """Checking availability alone must be read-only."""
+        before = self.snapshot()
+        self.assertTrue(main.check_ingredients("(1) Latte"))
+        self.assertEqual(self.snapshot(), before)
+
+    def test_all_recipes_deduct_required_units(self):
+        """Successful orders consume the specified ml and grams and earn the price."""
+        cases = [
+            ("(1) Latte", ["5", "5", "4"], (100, 25, 250), 500),
+            ("(2) Espresso", ["5", "4"], (50, 20, 0), 300),
+            ("(3) Cappuccino", ["5", "5", "3"], (250, 25, 100), 450),
+        ]
+        for drink, coins, recipe, price in cases:
+            with self.subTest(drink=drink):
+                before = self.snapshot()
+                with patch("builtins.input", side_effect=coins):
+                    main.pour_coffee(drink)
+                after = self.snapshot()
+                self.assertEqual(tuple(before[i] - after[i] for i in range(3)), recipe)
+                self.assertEqual(main.EARNED_CENTS - before[4], price)
+                self.assertEqual(
+                    sum(v * n for v, n in main.CASH_DRAWER.items()), main.EARNED_CENTS
+                )
+
+    def test_exact_remaining_resources_can_be_used(self):
+        """An Espresso can use the last water and coffee without needing milk."""
+        main.WATER_TANK, main.COFFEE_STORAGE, main.OAT_MILK_TANK = 50, 20, 0
+        with patch("builtins.input", side_effect=["5", "4"]):
+            main.pour_coffee("(2) Espresso")
+        self.assertEqual(
+            (main.WATER_TANK, main.COFFEE_STORAGE, main.OAT_MILK_TANK), (0, 0, 0)
+        )
+        with patch("builtins.input") as prompt:
+            main.pour_coffee("(2) Espresso")
+        prompt.assert_not_called()
+        self.assertEqual(main.EARNED_CENTS, 300)
+
+    def test_change_can_use_inserted_coins(self):
+        """Inserted coins may supply change while net cash equals the sale price."""
+        # EUR 0.20 + EUR 0.50 + EUR 2 + EUR 2 requires returning the inserted 20 cents.
+        with patch("builtins.input", side_effect=["2", "3", "5", "5"]):
+            self.assertTrue(main.pay_coffee("(3) Cappuccino"))
+        self.assertEqual(main.CASH_DRAWER[20], 0)
+        self.assertEqual(main.CASH_DRAWER[50], 1)
+        self.assertEqual(main.CASH_DRAWER[200], 2)
+        self.assertEqual(main.EARNED_CENTS, 450)
+
+    def test_change_search_handles_greedy_dead_end(self):
+        """Three 20-cent coins can make 60 cents when taking 50 would fail."""
+        available = dict.fromkeys(main.COINS, 0)
+        available.update({50: 1, 20: 3})
+        before = available.copy()
+        change = main.find_change(60, available)
+        self.assertIsNotNone(change)
+        self.assertEqual(change[20], 3)
+        self.assertEqual(change[50], 0)
+        self.assertEqual(available, before)
+
+    def test_off_menu_command(self):
+        """The assignment's off command must terminate menu selection."""
+        with patch("builtins.input", return_value=" off "):
+            with self.assertRaises(SystemExit):
+                main.display_menu()
+
+    def test_order_loop_recovers_and_shuts_down(self):
+        """A cancelled order can be followed by a successful sale and shutdown."""
+        with patch(
+            "builtins.input",
+            side_effect=["0", "2", "4", "cancel", "2", "5", "4", "off"],
+        ):
+            with self.assertRaises(SystemExit):
+                main.main()
+        self.assertEqual(
+            (main.WATER_TANK, main.COFFEE_STORAGE, main.OAT_MILK_TANK),
+            (1950, 480, 1000),
+        )
+        self.assertEqual(main.EARNED_CENTS, 300)
+        self.assertEqual(main.CASH_DRAWER, {10: 0, 20: 0, 50: 0, 100: 1, 200: 1})
 
 
 if __name__ == "__main__":

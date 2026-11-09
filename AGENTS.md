@@ -1,149 +1,133 @@
-# Coffee Machine — agent guide
+# Coffee Machine - agent guide
 
-## Scope and current state
+## Current state
 
-This is a student Python console project implementing seven incremental coffee
-machine tasks. Keep solutions readable and proportionate to a small learning
-project; prefer the standard library and straightforward functions.
+Student Python console project, reviewed 2026-11-09. Tasks 1-5 are implemented
+and regression tested. The application is ready for development of Tasks 6-7;
+reports, replenishment, logging and CSV persistence are intentionally absent.
+Keep implementations readable and proportionate to a small learning project,
+using the standard library where practical.
 
-Assessment date: 2026-11-09. The application is an early prototype, with parts of
-Tasks 1–5 present and Tasks 6–7 missing. No task is fully verified end to end.
-The bugs below are observed behavior, not intended requirements.
+## Repository and checks
 
-Update after the ordering fixes: menu and coin inputs now validate integer ranges
-before indexing, invalid menu retries use a loop, payment `exit` returns `False`,
-and exact payment succeeds. Payment totals use integer cents. `main()` has an
-import guard. The progress table below records the original assessment; its
-input-crash and exact-payment findings are resolved by this update. Resource,
-refund, physical change, and missing-feature findings remain open.
+- `main.py`: menu, shared stock, payment, change, earnings and interactive loop.
+  The guarded `main()` makes imports safe.
+- `tests/test_ordering.py`: unittest regressions, also discoverable by pytest;
+  direct execution resolves the project root without relying on the working directory.
+  Currently 19 tests, split into `OrderingTests` and `TransactionTests`, with
+  shared state isolation in `MachineTestCase`.
+- `pyproject.toml`: Python >=3.12 and Black, Pylint, Mypy and pytest settings.
+- `requirements-dev.txt`: development tools including pre-commit.
+- `.pre-commit-config.yaml`: Black checks all formatting and Pylint checks staged
+  Python files at commit; full pytest and Mypy checks run at push.
+- `.github/workflows/ci.yml`: Black, Pylint and Mypy on Python 3.12.
+  `security.yml` audits dependencies. CI does not currently run pytest.
 
-## Repository and development
+Run `python main.py`. Install development dependencies with
+`python -m pip install -r requirements-dev.txt`, then install both hook types
+with `python -m pre_commit install --install-hooks`. The executable is named
+`pre-commit`; the Python module is `pre_commit`.
 
-- `main.py`: all menu, payment, resource logic, and the interactive loop.
-- `pyproject.toml`: Python >=3.12; Black, Pylint, Mypy, and pytest configuration.
-- `requirements.txt`: no runtime packages; its tkinter comment is stale (the app
-  currently imports only `time`).
-- `requirements-dev.txt`: development/checking tools.
-- `.github/workflows/ci.yml`: Pylint, Black, and Mypy checks.
-- `.github/workflows/security.yml`: dependency audit.
-- `tests/test_ordering.py`: seven unittest regression tests, also discoverable by
-  pytest. No report files, replenishment log, or CSV persistence exists yet.
+Verify changes with `python -m pytest`, `python -m black --check .`,
+`python -m pylint main.py tests/test_ordering.py`, and `python -m mypy .`.
+Also check `python tests/test_ordering.py` when changing test imports.
+Manual hook checks: `python -m pre_commit run --all-files` and
+`python -m pre_commit run --all-files --hook-stage pre-push`.
+On Windows the local interpreter is `.\.venv\Scripts\python.exe`.
+Local checks use Python 3.14; do not claim remote Python 3.12 checks passed
+without observing a new workflow run.
 
-Run with `python main.py` (Windows local environment:
-`.\.venv\Scripts\python.exe main.py`). Importing `main.py` is safe: the interactive
-loop runs only through the guarded `main()` entry point.
+Latest local verification (2026-11-09): pytest and direct unittest execution
+both pass all 19 tests; Black reports both Python files unchanged; Pylint scores
+10/10; Mypy reports no issues. Hook configuration and installation instructions
+are present, but `.pre-commit-config.yaml` is currently untracked. Include it
+when committing the hook setup so other checkouts can install the same hooks.
 
-For code changes, run appropriate regression tests and the configured checks:
-`python -m pytest`, `python -m black --check .`, `python -m pylint main.py`, and
-`python -m mypy .` once the tools are installed. Pytest is configured for `tests/`,
-and tests can also run with `python -m unittest discover -s tests -v`. All seven
-regression tests passed using unittest after the ordering fixes. Following the CI
-cleanup, the tools are available locally: pytest passes all seven tests, Black
-reports both Python files unchanged, Pylint scores 10/10 on application and tests,
-and Mypy reports no issues. Local verification uses Python 3.14; CI uses 3.12.
-Module-level currency and stock names now use uppercase, including `CASH_DRAWER`.
-Pylint exceptions are limited to shared stock's `global` statement and the test
-import after its intentional path setup. Do not describe remote checks as passing
-until a new workflow run confirms it.
+## Task status and data conventions
 
-## Progress against the assignment
+| Task | State |
+| --- | --- |
+| 1 | Menu dictionary, prices, validated selection, simulated pouring, repeated orders, `off` and `exit` shutdown. |
+| 2 | Price displayed before payment; accepted coins, exact payment, coin-count change accounting, underpayment refusal and refunds. All dispensing is simulated in the console. |
+| 3 | Correct recipes using millilitres and grams. Latte uses the Task 3 Latte Macchiato recipe. |
+| 4 | Water 2000 ml, coffee 500 g, oat milk 1000 ml; coin compartments start empty. |
+| 5 | Availability checked before payment; stock deducted only after success; cash and earnings updated only for accepted payments. |
+| 6 | To develop: report command, text report, replenish command and replenishment log. |
+| 7 | To develop: shutdown CSV, startup state restore and specialty-coffee prices CSV. |
 
-| Task | Status | Evidence and gaps |
-| --- | --- | --- |
-| 1: menu, selection, pouring, repetition, off | Partial | Dictionary contains Latte EUR 5, Espresso EUR 3, Cappuccino EUR 4.50. Selection and a repeated loop exist; pouring is simulated. `exit` terminates from the menu, but `off` is unsupported. Payment bugs prevent normal exact-payment orders. |
-| 2: price, accepted coins, payment and change | Partial / broken | Price shown before payment; all five denominations exist. Exact payment returns `None`; excess payment only prints change. No finite payment submission or proper insufficient-payment rejection/refund. Coin inputs can crash. |
-| 3: recipes in menu | Partial | All recipes have water, coffee and oat milk entries, but units differ from resource storage. Espresso water is 0.025 instead of the required 50 ml. |
-| 4: overall resources and coin compartments | Mostly represented | Tanks start at 2000 ml water, 500 g coffee, 1000 ml oat milk. Cash drawer has counters for all five coins, initially zero. Operational correctness remains blocked by payment/resource bugs. |
-| 5: check and deduct resources, collect money | Partial / incorrect | Checks and mutations exist, but the shortage condition, units, and timing are wrong. Inserted coins are counted immediately, including for failed orders; change is never deducted. |
-| 6: report, text file, replenish and log | Missing | No commands, report output file, refill logic, or replenishment log. |
-| 7: save on off, restore state, load prices CSV | Missing | No CSV read/write or startup loading; prices are hardcoded. |
-
-## Required values and conventions for future fixes
-
-Use millilitres for liquids and grams for coffee throughout inventory and recipes:
-
-| Drink | Price | Water (ml) | Coffee (g) | Oat milk (ml) |
+| Drink | Price (EUR) | Water (ml) | Coffee (g) | Oat milk (ml) |
 | --- | --- | --- | --- | --- |
-| Latte / Latte Macchiato | EUR 5.00 | 100 | 25 | 250 |
-| Espresso | EUR 3.00 | 50 | 20 | 0 |
-| Cappuccino | EUR 4.50 | 250 | 25 | 100 |
+| Latte / Latte Macchiato | 5.00 | 100 | 25 | 250 |
+| Espresso | 3.00 | 50 | 20 | 0 |
+| Cappuccino | 4.50 | 250 | 25 | 100 |
 
-The assignment calls the first drink Latte in Task 1 and Latte Macchiato in
-Task 3; treat these as the same menu item unless instructed otherwise.
-Tank capacities: 2000 ml water, 500 g coffee, 1000 ml oat milk. Accepted coins:
-10, 20, 50, 100, and 200 euro cents. Prefer integer cents for all money and coin
-denominations to avoid float rounding problems.
+`RESOURCE_CAPACITIES` defines refill targets. Current stock remains in
+`WATER_TANK`, `COFFEE_STORAGE`, and `OAT_MILK_TANK`; these uppercase variables
+are mutable state, not capacity constants. `COINS` and `CASH_DRAWER` use integer
+cent keys (10, 20, 50, 100, 200). `EARNED_CENTS` counts successful sale prices,
+not gross inserted coins or an initial cash float. Menu prices remain euros for
+readability and convert to cents at payment. Do not mix euros and cents.
 
-## Original bug findings and resolution status
+## Order and payment behavior
 
-Findings 1–3 below are resolved, including negative/zero input validation. Their
-reproductions are retained as context for regression tests. Findings 4–9 remain
-open, except that payment cancellation via `exit` now works without an exception;
-refunds of earlier coins and restoration of deducted ingredients remain missing.
+- Menu inputs must be within 1-3; coin selections within 1-5. Invalid input
+  retries iteratively without modifying state. `off` shuts down; menu `exit`
+  is a shutdown alias, while payment `exit` cancels only the order.
+- `check_ingredients` checks any shortage and does not mutate stock. After
+  successful payment, `pour_coffee` calls `deduct_ingredients` exactly once.
+- Inserted coins stay in payment escrow. `done` below the price refuses the
+  order; `cancel` and `exit` cancel it. All refund the inserted coins without
+  altering the drawer or stock. Payment EOF/interrupt and `off` refund and exit.
+- Payment completes automatically on reaching the price. `complete_payment`
+  checks change against drawer plus inserted coins before updating cash and
+  earnings. `find_change` uses bounded combinations rather than greedy-only
+  selection, so available exact change is not missed.
+- If change is impossible, refuse and refund the entire payment. Do not invent
+  a starting cash float. Refusal and cancellation preserve stock, cash and earnings.
+- `pay_coffee` commits cash/earnings and returns a success bool; it is a payment
+  helper, not a full order. Production orders must go through `pour_coffee` so
+  resource checks and consumption happen too.
 
-1. **Ordering/payment IndexError (highest priority):** select a drink, then enter
-   `6` at `Throw in a coin:`. In `pay_coffee`,
-   `list(coins)[int(coin) - 1]` indexes beyond five entries before validation.
-   Nonnumeric input raises `ValueError`; `exit` also raises `ValueError` because
-   conversion occurs before the exit check. Zero and some negative numbers
-   silently select coins through Python negative indexing. Validate commands,
-   conversion, and the inclusive range before indexing or changing state.
-2. **Menu input validation:** `display_menu` uses the same unchecked index
-   approach. Entering `0` selects Cappuccino. Invalid large indices are caught,
-   but the bare `except` hides unrelated errors, and recursive retries can
-   exhaust the call stack. Use an iterative prompt and specific validation.
-3. **Exact payment fails:** `pay_coffee` returns `True` only for overpayment.
-   For Espresso, three `4` coin selections (three EUR 1 coins) return `None`,
-   so `pour_coffee` reports unsuccessful payment despite collecting EUR 3.
-4. **Insufficient funds/cancellation:** payment loops until the price is reached;
-   there is no working finish/cancel path for underpayment. Coins already mutate
-   the drawer and are not refunded if the order fails or the input crashes.
-5. **Change is only printed:** no coins leave the drawer. Physical change
-   availability is not checked; printed change and actual cash can disagree.
-6. **Resource units:** recipes use fractional litres/kilograms while inventory
-   uses millilitres/grams, so deductions are about 1000 times too small.
-7. **Shortage logic:** `check_ingredients` joins shortages with `and`; a single
-   insufficient ingredient must refuse the order. Check each ingredient and
-   reject when any required quantity exceeds stock.
-8. **Premature resource deduction:** `check_ingredients` changes inventory before
-   payment succeeds. Split availability checking from committing deductions.
-9. **Currency display:** `display_menu` prints both `$` and the euro symbol.
-   Keep output consistently in euros. There are also minor prompt spelling errors.
+## Resolved bugs and regression coverage
 
-The coin `6` crash, coin `exit` crash, and exact-payment `None` result were
-reproduced by executing the existing functions with controlled inputs, excluding
-the interactive top-level loop during the original assessment. The subsequent
-ordering fixes are covered by the regression suite described above.
+Resolved: menu/coin index errors, nonnumeric input crashes, recursive retries,
+zero/negative indexing, exact-payment failure, mixed inventory units, incorrect
+Espresso water, all-shortages-only checks, premature stock consumption, retained
+cancelled payments, fictitious change, missing earnings tracking and mixed
+currency output. No known blockers remain in Tasks 1-5 under the current model.
 
-## Prioritized ToDos and implementation guidance
+Regression tests cover input boundaries and repeated retries, all drink and coin
+choices, exact payment, actual change and unavailable change, cancellation and
+underpayment, shutdown/interrupt refunds, individual shortages, exact remaining
+stock, correct recipes and earnings, read-only availability, bounded change
+search and repeated order flow. Keep tests free of real sleeps and input.
 
-1. Input validation, iterative menu retries, exact payment, and the import guard
-   are complete. Add `off` explicitly in future command work; currently only
-   `exit` is supported (shutdown at the menu, cancellation during payment).
-2. Correct recipes/units and availability checks. Keep failed, cancelled, and
-   invalid orders from consuming ingredients or retaining payment.
-3. Implement underpayment rejection/refund and actual change
-   handling. Stage inserted coins, determine whether change can be made, then
-   commit inventory and drawer updates only for successful orders. An empty
-   initial drawer means some overpayments cannot be changed; define and test a
-   clear refusal/refund policy. Track earned money as successful sale prices,
-   separately from inserted amounts and returned change.
-4. Implement `report`: display resource levels with units and earned money;
-   write the same data to a text file.
-5. Implement `replenish`: refill resources to the stated capacities and append a
-   dated log entry recording what changed. Do not invent initial cash floats or
-   coin refill quantities without documenting the chosen behavior.
-6. Implement `off` CSV snapshot and startup restore of resources and each coin
-   compartment. Persist any separate earnings value needed for accurate reports.
-   Add a specialty-coffee prices CSV and load its prices at startup. Document
-   filenames/schema and behavior for missing or malformed files; validate values
-   before applying them and avoid overwriting a valid snapshot with partial data.
-7. Update README usage and remove stale dependency comments once behavior is
-   implemented. Keep changes focused; preserve unrelated user work.
+## Current limitations
 
-Regression coverage should exercise menu/coin boundaries (including zero,
-negative values, nonnumeric text and commands), exact and excess payment,
-underpayment/cancellation, unavailable change, one depleted ingredient at a time,
-exact remaining quantities, and unchanged state after failed orders. As Tasks
-6–7 are implemented, cover report/log output and CSV round trips, including
-missing/malformed files. Avoid real sleeps and real interactive input in tests.
+- All stock, cash and earnings are in memory and reset on a fresh process.
+  Shutdown currently raises `SystemExit` without saving anything (Task 7).
+- Graceful EOF/interrupt handling and refunds exist at the payment prompt;
+  menu input and pouring sleeps do not have equivalent shutdown handling.
+  Centralize shutdown paths when adding persistence, including `off` in payment.
+- Menu prices are hardcoded; report and replenish commands are not recognized.
+- `requirements.txt` has a stale tkinter comment; runtime code only imports
+  `time`. This documentation cleanup does not block Task 6.
+
+## Next development
+
+1. Task 6: dispatch `report` and `replenish` at the drink menu without treating
+   them as drinks. Report current stock with units and `EARNED_CENTS / 100` as
+   euros; write the same data to a text file. Keep capacities separate from stock.
+2. Replenish to `RESOURCE_CAPACITIES` and append a timestamped log describing
+   actual changes. Do not reset earned money or invent cash refill quantities.
+3. Task 7: save current stock, individual coin counts and earnings on shutdown;
+   restore on startup. Add a prices CSV and load prices before showing the menu.
+   Choose and document filenames and schemas during that task. Validate loaded
+   values before applying them; avoid partial state and corrupting valid snapshots.
+4. Add tests for report files, refill limits/log entries and CSV round trips,
+   missing files and malformed input as those capabilities are implemented.
+5. Hook environments are isolated; add runtime dependencies to appropriate hook
+   environments if the application stops being standard-library-only.
+
+Preserve unrelated user work, IDE files and assets. Do not commit or push changes
+unless requested.

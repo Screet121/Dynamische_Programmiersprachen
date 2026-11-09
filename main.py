@@ -3,30 +3,28 @@
 import time
 
 MACHINE_CURRENCY = "€"
-WATER_TANK = 2000
-COFFEE_STORAGE = 500
-OAT_MILK_TANK = 1000
+RESOURCE_CAPACITIES = {"water": 2000, "coffee": 500, "oat_milk": 1000}
+WATER_TANK = RESOURCE_CAPACITIES["water"]
+COFFEE_STORAGE = RESOURCE_CAPACITIES["coffee"]
+OAT_MILK_TANK = RESOURCE_CAPACITIES["oat_milk"]
 
-CASH_DRAWER = {
-    0.10: 0,
-    0.20: 0,
-    0.50: 0,
-    1.00: 0,
-    2.00: 0,
-}
+# All coin values and earned money are stored as integer euro cents.
+COINS = {10: "10 Cent", 20: "20 Cent", 50: "50 Cent", 100: "1 Euro", 200: "2 Euro"}
+CASH_DRAWER = dict.fromkeys(COINS, 0)
+EARNED_CENTS = 0
 
 menu = {
     "(1) Latte": {
         "price": 5.0,
-        "recipe": {"water": 0.1, "coffee": 0.025, "oat_milk": 0.25},
+        "recipe": {"water": 100, "coffee": 25, "oat_milk": 250},
     },
     "(2) Espresso": {
         "price": 3.0,
-        "recipe": {"water": 0.025, "coffee": 0.02, "oat_milk": 0},
+        "recipe": {"water": 50, "coffee": 20, "oat_milk": 0},
     },
     "(3) Cappuccino": {
         "price": 4.5,
-        "recipe": {"water": 0.25, "coffee": 0.025, "oat_milk": 0.1},
+        "recipe": {"water": 250, "coffee": 25, "oat_milk": 100},
     },
 }
 
@@ -34,11 +32,11 @@ menu = {
 def display_menu():
     """Prompt until a valid drink is selected, or exit the program."""
     for item, details in menu.items():
-        print(f"{item}: ${details['price']:.2f}{MACHINE_CURRENCY}")
+        print(f"{item}: {details['price']:.2f}{MACHINE_CURRENCY}")
 
     while True:
-        order = input("What would you like to order?\n").strip().lower()
-        if order == "exit":
+        order = input("Choose a drink (1-3), or off to shut down:\n").strip().lower()
+        if order in {"exit", "off"}:
             raise SystemExit
         try:
             selection = int(order)
@@ -54,72 +52,116 @@ def pour_coffee(order):
     """Simulate pouring the selected drink after checking stock and payment."""
     if check_ingredients(order):
         if pay_coffee(order):
+            deduct_ingredients(order)
             item = order[order.find(" ") + 1 :]
             print(f"Pouring {item}...")
             time.sleep(3)
             print(f"{item} is ready!")
         else:
-            print("Payment was not succesful")
+            print("Payment was not successful")
+
+
+def find_change(amount, available):
+    """Find exact change with bounded coin counts; return None if impossible."""
+    combinations = {0: dict.fromkeys(COINS, 0)}
+    for value in sorted(COINS, reverse=True):
+        for total, counts in list(combinations.items()):
+            limit = min(available[value], (amount - total) // value)
+            for count in range(1, limit + 1):
+                new_total = total + count * value
+                if new_total not in combinations:
+                    combination = counts.copy()
+                    combination[value] = count
+                    combinations[new_total] = combination
+    return combinations.get(amount)
+
+
+def refund(inserted):
+    """Return escrowed coins without changing the cash drawer."""
+    amount = sum(value * count for value, count in inserted.items())
+    print(f"Refund: {amount / 100:.2f}{MACHINE_CURRENCY}")
+
+
+def complete_payment(price, inserted):
+    """Commit cash and sales earnings only if exact change is available."""
+    global EARNED_CENTS  # pylint: disable=global-statement
+    paid = sum(value * count for value, count in inserted.items())
+    available = {value: CASH_DRAWER[value] + inserted[value] for value in COINS}
+    change = find_change(paid - price, available)
+    if change is None:
+        print("Cannot make exact change. Order refused.")
+        refund(inserted)
+        return False
+    for value in COINS:
+        CASH_DRAWER[value] = available[value] - change[value]
+    EARNED_CENTS += price
+    if paid > price:
+        print(f"You get: {(paid - price) / 100:.2f}{MACHINE_CURRENCY} back")
+    return True
 
 
 def pay_coffee(order):
-    """Collect coins until the price is covered, or cancel on exit."""
-    coins = {
-        "(1) 10 Cent": 0.10,
-        "(2) 20 Cent": 0.20,
-        "(3) 50 Cent": 0.50,
-        "(4) 1 Euro": 1.00,
-        "(5) 2 Euro": 2.00,
-    }
+    """Collect coins in escrow; refund cancellations and refused payments."""
     price = round(menu[order]["price"] * 100)
-    money_payed = 0
-    print(f"Yout total is: {price / 100:.2f}€")
+    inserted = dict.fromkeys(COINS, 0)
+    paid = 0
+    print(f"Your total is: {price / 100:.2f}{MACHINE_CURRENCY}")
+    for number, label in enumerate(COINS.values(), start=1):
+        print(f"({number}) {label}")
 
-    while money_payed < price:
-        for coin, value in coins.items():
-            print(f"{coin}: {value:}€")
-
-        coin = input("Throw in a coin: ").strip().lower()
-        if coin == "exit":
+    while paid < price:
+        try:
+            coin = input("Coin (1-5), done, cancel, or off: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            refund(inserted)
+            raise SystemExit from None
+        if coin in {"done", "cancel", "exit", "off"}:
+            print(
+                "Insufficient payment. Order refused."
+                if coin == "done"
+                else "Order cancelled."
+            )
+            refund(inserted)
+            if coin == "off":
+                raise SystemExit
             return False
         try:
             selection = int(coin)
         except ValueError:
             print("Invalid coin. Please try again.")
             continue
-        if not 1 <= selection <= len(coins):
+        if not 1 <= selection <= len(COINS):
             print("Invalid coin. Please try again.")
             continue
-        selected_coin = list(coins)[selection - 1]
-        value = coins[selected_coin]
-        CASH_DRAWER[value] += 1
-        print(CASH_DRAWER)
-        money_payed += round(value * 100)
-
-    if money_payed > price:
-        print(f"You get: {(money_payed - price) / 100:.2f}€ back")
-    return True
+        value = list(COINS)[selection - 1]
+        inserted[value] += 1
+        paid += value
+    return complete_payment(price, inserted)
 
 
 def check_ingredients(order):
-    """Check stock and deduct the ingredients for the selected drink."""
-    # Stock is shared across orders in this small console application.
-    global WATER_TANK, COFFEE_STORAGE, OAT_MILK_TANK  # pylint: disable=global-statement
+    """Check availability without changing stock or accepting payment."""
 
     recipe = menu[order]["recipe"]
     if (
         WATER_TANK < recipe["water"]
-        and COFFEE_STORAGE < recipe["coffee"]
-        and OAT_MILK_TANK < recipe["oat_milk"]
+        or COFFEE_STORAGE < recipe["coffee"]
+        or OAT_MILK_TANK < recipe["oat_milk"]
     ):
         print("Insufficient ingredients!")
         print(WATER_TANK, COFFEE_STORAGE, OAT_MILK_TANK)
         return False
 
+    return True
+
+
+def deduct_ingredients(order):
+    """Consume ingredients only after a successful payment."""
+    global WATER_TANK, COFFEE_STORAGE, OAT_MILK_TANK  # pylint: disable=global-statement
+    recipe = menu[order]["recipe"]
     WATER_TANK -= recipe["water"]
     COFFEE_STORAGE -= recipe["coffee"]
     OAT_MILK_TANK -= recipe["oat_milk"]
-    return True
 
 
 def main():
