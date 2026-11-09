@@ -45,14 +45,18 @@ def display_menu():
     for item, details in menu.items():
         print(f"{item}: ${details['price']:.2f}{machine_currency}")
 
-    order = input("What would you like to order?\n")
-    if order == "exit":
-        exit()
-    try:
-        return list(menu)[int(order) - 1]  # check if order is in menu
-    except:
+    while True:
+        order = input("What would you like to order?\n").strip().lower()
+        if order == "exit":
+            raise SystemExit
+        try:
+            selection = int(order)
+        except ValueError:
+            print("Invalid order. Please try again.")
+            continue
+        if 1 <= selection <= len(menu):
+            return list(menu)[selection - 1]
         print("Invalid order. Please try again.")
-        return display_menu()
 
 
 def pour_coffee(order):
@@ -74,25 +78,34 @@ def pay_coffee(order):
         "(4) 1 Euro": 1.00,
         "(5) 2 Euro": 2.00,
     }
-    price = menu[order]['price']
+    price = round(menu[order]['price'] * 100)
     money_payed = 0
-    print(f"Yout total is: {price:.2f}€")
+    print(f"Yout total is: {price / 100:.2f}€")
 
     while money_payed < price:
         for coin, value in coins.items():
             print(f"{coin}: {value:}€")
 
-        coin = input("Throw in a coin: ")
-        cashDrawer[(coins[list(coins)[int(coin) - 1]])] += 1
-        print(cashDrawer)
+        coin = input("Throw in a coin: ").strip().lower()
         if coin == "exit":
             return False
-        selected_coin = list(coins)[int(coin) - 1]
-        money_payed += coins[selected_coin]
+        try:
+            selection = int(coin)
+        except ValueError:
+            print("Invalid coin. Please try again.")
+            continue
+        if not 1 <= selection <= len(coins):
+            print("Invalid coin. Please try again.")
+            continue
+        selected_coin = list(coins)[selection - 1]
+        value = coins[selected_coin]
+        cashDrawer[value] += 1
+        print(cashDrawer)
+        money_payed += round(value * 100)
 
     if money_payed > price:
-        print(f"You get: {(money_payed - price):.2f}€ back")
-        return True
+        print(f"You get: {(money_payed - price) / 100:.2f}€ back")
+    return True
 
 def check_ingredients(order):
         global watertank, coffeeStorage, oatMilkTank
@@ -112,6 +125,11 @@ def check_ingredients(order):
         oatMilkTank -= recipe['oat_milk']
         return True
 
-while True:
-    pour_coffee(display_menu())
-    time.sleep(2)
+def main():
+    while True:
+        pour_coffee(display_menu())
+        time.sleep(2)
+
+
+if __name__ == "__main__":
+    main()
