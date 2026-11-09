@@ -1,11 +1,13 @@
+"""Interactive coffee machine with menu selection and coin payments."""
+
 import time
 
-machine_currency = "€"
-watertank = 2000
-coffeeStorage = 500
-oatMilkTank = 1000
+MACHINE_CURRENCY = "€"
+WATER_TANK = 2000
+COFFEE_STORAGE = 500
+OAT_MILK_TANK = 1000
 
-cashDrawer = {
+CASH_DRAWER = {
     0.10: 0,
     0.20: 0,
     0.50: 0,
@@ -16,34 +18,23 @@ cashDrawer = {
 menu = {
     "(1) Latte": {
         "price": 5.0,
-        "recipe": {
-            "water": 0.1,
-            "coffee": 0.025,
-            "oat_milk": 0.25
-        }
+        "recipe": {"water": 0.1, "coffee": 0.025, "oat_milk": 0.25},
     },
     "(2) Espresso": {
         "price": 3.0,
-        "recipe": {
-            "water": 0.025,
-            "coffee": 0.02,
-            "oat_milk": 0
-        }
+        "recipe": {"water": 0.025, "coffee": 0.02, "oat_milk": 0},
     },
     "(3) Cappuccino": {
         "price": 4.5,
-        "recipe": {
-            "water": 0.25,
-            "coffee": 0.025,
-            "oat_milk": 0.1
-        }
+        "recipe": {"water": 0.25, "coffee": 0.025, "oat_milk": 0.1},
     },
 }
 
 
 def display_menu():
+    """Prompt until a valid drink is selected, or exit the program."""
     for item, details in menu.items():
-        print(f"{item}: ${details['price']:.2f}{machine_currency}")
+        print(f"{item}: ${details['price']:.2f}{MACHINE_CURRENCY}")
 
     while True:
         order = input("What would you like to order?\n").strip().lower()
@@ -60,7 +51,8 @@ def display_menu():
 
 
 def pour_coffee(order):
-    if(check_ingredients(order)):
+    """Simulate pouring the selected drink after checking stock and payment."""
+    if check_ingredients(order):
         if pay_coffee(order):
             item = order[order.find(" ") + 1 :]
             print(f"Pouring {item}...")
@@ -71,6 +63,7 @@ def pour_coffee(order):
 
 
 def pay_coffee(order):
+    """Collect coins until the price is covered, or cancel on exit."""
     coins = {
         "(1) 10 Cent": 0.10,
         "(2) 20 Cent": 0.20,
@@ -78,7 +71,7 @@ def pay_coffee(order):
         "(4) 1 Euro": 1.00,
         "(5) 2 Euro": 2.00,
     }
-    price = round(menu[order]['price'] * 100)
+    price = round(menu[order]["price"] * 100)
     money_payed = 0
     print(f"Yout total is: {price / 100:.2f}€")
 
@@ -99,33 +92,38 @@ def pay_coffee(order):
             continue
         selected_coin = list(coins)[selection - 1]
         value = coins[selected_coin]
-        cashDrawer[value] += 1
-        print(cashDrawer)
+        CASH_DRAWER[value] += 1
+        print(CASH_DRAWER)
         money_payed += round(value * 100)
 
     if money_payed > price:
         print(f"You get: {(money_payed - price) / 100:.2f}€ back")
     return True
 
+
 def check_ingredients(order):
-        global watertank, coffeeStorage, oatMilkTank
+    """Check stock and deduct the ingredients for the selected drink."""
+    # Stock is shared across orders in this small console application.
+    global WATER_TANK, COFFEE_STORAGE, OAT_MILK_TANK  # pylint: disable=global-statement
 
-        recipe = menu[order]["recipe"]
-        if (
-            watertank < recipe['water'] 
-            and coffeeStorage < recipe['coffee'] 
-            and oatMilkTank < recipe['oat_milk']
-        ):
-            print("Insufficient ingredients!")
-            print(watertank, coffeeStorage, oatMilkTank)
-            return False
+    recipe = menu[order]["recipe"]
+    if (
+        WATER_TANK < recipe["water"]
+        and COFFEE_STORAGE < recipe["coffee"]
+        and OAT_MILK_TANK < recipe["oat_milk"]
+    ):
+        print("Insufficient ingredients!")
+        print(WATER_TANK, COFFEE_STORAGE, OAT_MILK_TANK)
+        return False
 
-        watertank -= recipe['water']
-        coffeeStorage -= recipe['coffee']
-        oatMilkTank -= recipe['oat_milk']
-        return True
+    WATER_TANK -= recipe["water"]
+    COFFEE_STORAGE -= recipe["coffee"]
+    OAT_MILK_TANK -= recipe["oat_milk"]
+    return True
+
 
 def main():
+    """Run the interactive ordering loop."""
     while True:
         pour_coffee(display_menu())
         time.sleep(2)

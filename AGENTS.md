@@ -37,10 +37,14 @@ For code changes, run appropriate regression tests and the configured checks:
 `python -m pytest`, `python -m black --check .`, `python -m pylint main.py`, and
 `python -m mypy .` once the tools are installed. Pytest is configured for `tests/`,
 and tests can also run with `python -m unittest discover -s tests -v`. All seven
-regression tests passed using unittest after the ordering fixes. Pytest, Black,
-Pylint, and Mypy were unavailable in the local virtual environment, so those
-checks have not passed verification. Do not describe configured checks as passing
-without running them.
+regression tests passed using unittest after the ordering fixes. Following the CI
+cleanup, the tools are available locally: pytest passes all seven tests, Black
+reports both Python files unchanged, Pylint scores 10/10 on application and tests,
+and Mypy reports no issues. Local verification uses Python 3.14; CI uses 3.12.
+Module-level currency and stock names now use uppercase, including `CASH_DRAWER`.
+Pylint exceptions are limited to shared stock's `global` statement and the test
+import after its intentional path setup. Do not describe remote checks as passing
+until a new workflow run confirms it.
 
 ## Progress against the assignment
 
