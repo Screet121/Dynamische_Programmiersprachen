@@ -2,6 +2,7 @@
 
 import time
 
+# Temporary capacities & menu; will be moved to separate file later
 MACHINE_CURRENCY = "€"
 RESOURCE_CAPACITIES = {"water": 2000, "coffee": 500, "oat_milk": 1000}
 WATER_TANK = RESOURCE_CAPACITIES["water"]
@@ -37,7 +38,11 @@ def display_menu():
     while True:
         order = input("Choose a drink (1-3), or off to shut down:\n").strip().lower()
         if order in {"exit", "off"}:
+            generate_report()
             raise SystemExit
+        if order == "report":
+            generate_report()
+            continue
         try:
             selection = int(order)
         except ValueError:
@@ -162,6 +167,31 @@ def deduct_ingredients(order):
     WATER_TANK -= recipe["water"]
     COFFEE_STORAGE -= recipe["coffee"]
     OAT_MILK_TANK -= recipe["oat_milk"]
+
+
+def generate_report():
+    """Generate a report with the remaining contents of resources."""
+    report_file = "levels.txt"
+    with open(f"{report_file}", "w", encoding="utf-8") as report:
+        print(
+            "=== Machine Storage Levels ===\n",
+            "Water: ",
+            WATER_TANK,
+            "/",
+            RESOURCE_CAPACITIES["water"],
+            "\n",
+            "Coffee: ",
+            COFFEE_STORAGE,
+            "/",
+            RESOURCE_CAPACITIES["coffee"],
+            "\n",
+            "Oat Milk: ",
+            OAT_MILK_TANK,
+            "/",
+            RESOURCE_CAPACITIES["oat_milk"],
+            file=report,
+        )
+    print(f"Report Generated to {report_file}")
 
 
 def main():
