@@ -5,7 +5,7 @@ import sys
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import mock_open, patch
 
 # Direct execution puts tests/ on the import path, rather than the project root.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -19,13 +19,11 @@ class MachineTestCase(unittest.TestCase):
     def setUp(self):
         self.output = io.StringIO()
         self.enterContext(redirect_stdout(self.output))
-        for name, value in (
-            ("WATER_TANK", 2000),
-            ("COFFEE_STORAGE", 500),
-            ("OAT_MILK_TANK", 1000),
-            ("EARNED_CENTS", 0),
-        ):
-            self.enterContext(patch.object(main, name, value))
+        self.enterContext(
+            patch.object(main, "RESOURCE_TANKS", main.RESOURCE_CAPACITIES.copy())
+        )
+        self.enterContext(patch.object(main, "EARNED_CENTS", 0))
+        self.report = self.enterContext(patch("builtins.open", mock_open()))
         self.enterContext(patch.object(main.time, "sleep"))
         drawer = patch.object(main, "CASH_DRAWER", dict.fromkeys(main.CASH_DRAWER, 0))
         drawer.start()
@@ -99,15 +97,69 @@ class OrderingTests(MachineTestCase):
         self.assertEqual(main.EARNED_CENTS, 300)
 
 
+class ResourceTests(MachineTestCase):
+    """Check dynamic tank creation, recipes, reports and refilling."""
+
+    def test_new_resource_is_created_and_existing_drinks_still_work(self):
+        """A capacity entry creates a full tank without changing old recipes."""
+        with patch.dict(main.RESOURCE_CAPACITIES, {"syrup": 300}):
+            main.RESOURCE_TANKS.clear()
+            main.replenish_tanks()
+            self.assertEqual(main.RESOURCE_TANKS, main.RESOURCE_CAPACITIES)
+            self.assertEqual(main.RESOURCE_TANKS["syrup"], 300)
+            main.RESOURCE_TANKS["syrup"] = 0
+            with patch("builtins.input", side_effect=["5", "4"]):
+                main.pour_coffee("(2) Espresso")
+            self.assertEqual(main.RESOURCE_TANKS["syrup"], 0)
+            self.assertEqual(main.RESOURCE_TANKS["water"], 1950)
+            self.assertEqual(main.EARNED_CENTS, 300)
+            main.replenish_tanks()
+            self.assertEqual(main.RESOURCE_TANKS, main.RESOURCE_CAPACITIES)
+            self.assertEqual(main.EARNED_CENTS, 300)
+
+    def test_recipe_can_use_new_resource(self):
+        """A new recipe ingredient is checked and consumed by its name."""
+        with (
+            patch.dict(main.RESOURCE_CAPACITIES, {"syrup": 300}),
+            patch.dict(main.RESOURCE_TANKS, {"syrup": 10}),
+            patch.dict(main.menu["(2) Espresso"]["recipe"], {"syrup": 10}),
+        ):
+            self.assertTrue(main.check_ingredients("(2) Espresso"))
+            main.deduct_ingredients("(2) Espresso")
+            self.assertEqual(main.RESOURCE_TANKS["syrup"], 0)
+            self.assertFalse(main.check_ingredients("(2) Espresso"))
+
+    def test_report_includes_dynamic_stock_and_preserves_state(self):
+        """Reports show the actual quantities and capacities of every tank."""
+        with (
+            patch.dict(main.RESOURCE_CAPACITIES, {"syrup": 300}),
+            patch.dict(main.RESOURCE_TANKS, {"syrup": 75}),
+        ):
+            before = main.RESOURCE_TANKS.copy()
+            main.generate_report()
+            written = "".join(
+                call.args[0] for call in self.report.return_value.write.call_args_list
+            )
+            self.assertIn("Syrup: 75/300\n", written)
+            self.assertIn("Water: 2000/2000\n", written)
+            self.assertEqual(main.RESOURCE_TANKS, before)
+            self.report.assert_called_with("levels.txt", "w", encoding="utf-8")
+
+    def test_menu_commands_return_to_selection(self):
+        """Report and replenish are handled without becoming drink orders."""
+        main.RESOURCE_TANKS["water"] = 0
+        with patch("builtins.input", side_effect=["report", "replenish", "2"]):
+            self.assertEqual(main.display_menu(), "(2) Espresso")
+        self.assertEqual(main.RESOURCE_TANKS, main.RESOURCE_CAPACITIES)
+
+
 class TransactionTests(MachineTestCase):
     """Check resource accounting and successful or refused transactions."""
 
     def snapshot(self):
         """Capture inventory, cash and earnings for failed-order assertions."""
         return (
-            main.WATER_TANK,
-            main.COFFEE_STORAGE,
-            main.OAT_MILK_TANK,
+            main.RESOURCE_TANKS.copy(),
             main.CASH_DRAWER.copy(),
             main.EARNED_CENTS,
         )
@@ -151,8 +203,11 @@ class TransactionTests(MachineTestCase):
 
     def test_each_ingredient_shortage_refuses_before_payment(self):
         """One insufficient resource must refuse an order before collecting coins."""
-        for resource in ("WATER_TANK", "COFFEE_STORAGE", "OAT_MILK_TANK"):
-            with self.subTest(resource=resource), patch.object(main, resource, 0):
+        for resource in main.RESOURCE_CAPACITIES:
+            with (
+                self.subTest(resource=resource),
+                patch.dict(main.RESOURCE_TANKS, {resource: 0}),
+            ):
                 before = self.snapshot()
                 with patch("builtins.input") as prompt:
                     main.pour_coffee("(1) Latte")
@@ -178,19 +233,25 @@ class TransactionTests(MachineTestCase):
                 with patch("builtins.input", side_effect=coins):
                     main.pour_coffee(drink)
                 after = self.snapshot()
-                self.assertEqual(tuple(before[i] - after[i] for i in range(3)), recipe)
-                self.assertEqual(main.EARNED_CENTS - before[4], price)
+                self.assertEqual(
+                    tuple(
+                        before[0][key] - after[0][key]
+                        for key in ("water", "coffee", "oat_milk")
+                    ),
+                    recipe,
+                )
+                self.assertEqual(main.EARNED_CENTS - before[2], price)
                 self.assertEqual(
                     sum(v * n for v, n in main.CASH_DRAWER.items()), main.EARNED_CENTS
                 )
 
     def test_exact_remaining_resources_can_be_used(self):
         """An Espresso can use the last water and coffee without needing milk."""
-        main.WATER_TANK, main.COFFEE_STORAGE, main.OAT_MILK_TANK = 50, 20, 0
+        main.RESOURCE_TANKS.update(water=50, coffee=20, oat_milk=0)
         with patch("builtins.input", side_effect=["5", "4"]):
             main.pour_coffee("(2) Espresso")
         self.assertEqual(
-            (main.WATER_TANK, main.COFFEE_STORAGE, main.OAT_MILK_TANK), (0, 0, 0)
+            main.RESOURCE_TANKS, {"water": 0, "coffee": 0, "oat_milk": 0}
         )
         with patch("builtins.input") as prompt:
             main.pour_coffee("(2) Espresso")
@@ -233,8 +294,8 @@ class TransactionTests(MachineTestCase):
             with self.assertRaises(SystemExit):
                 main.main()
         self.assertEqual(
-            (main.WATER_TANK, main.COFFEE_STORAGE, main.OAT_MILK_TANK),
-            (1950, 480, 1000),
+            main.RESOURCE_TANKS,
+            {"water": 1950, "coffee": 480, "oat_milk": 1000},
         )
         self.assertEqual(main.EARNED_CENTS, 300)
         self.assertEqual(main.CASH_DRAWER, {10: 0, 20: 0, 50: 0, 100: 1, 200: 1})

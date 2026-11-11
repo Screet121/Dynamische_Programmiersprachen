@@ -1,13 +1,13 @@
 """Interactive coffee machine with menu selection and coin payments."""
 
 import time
+from datetime import datetime
 
 # Temporary capacities & menu; will be moved to separate file later
 MACHINE_CURRENCY = "€"
-RESOURCE_CAPACITIES = {"water": 2000, "coffee": 500, "oat_milk": 1000}
-WATER_TANK = RESOURCE_CAPACITIES["water"]
-COFFEE_STORAGE = RESOURCE_CAPACITIES["coffee"]
-OAT_MILK_TANK = RESOURCE_CAPACITIES["oat_milk"]
+RESOURCE_CAPACITIES = {"water": 2000, "coffee": 500, "oat_milk": 1000} # Max capacities of each ingredient. Will be moved to external config file later.
+RESOURCE_TANKS: dict[str, int] = {}  # Actual tank levels
+
 
 # All coin values and earned money are stored as integer euro cents.
 COINS = {10: "10 Cent", 20: "20 Cent", 50: "50 Cent", 100: "1 Euro", 200: "2 Euro"}
@@ -42,6 +42,9 @@ def display_menu():
             raise SystemExit
         if order == "report":
             generate_report()
+            continue
+        if order == "replenish":
+            replenish_tanks()
             continue
         try:
             selection = int(order)
@@ -148,54 +151,51 @@ def check_ingredients(order):
     """Check availability without changing stock or accepting payment."""
 
     recipe = menu[order]["recipe"]
-    if (
-        WATER_TANK < recipe["water"]
-        or COFFEE_STORAGE < recipe["coffee"]
-        or OAT_MILK_TANK < recipe["oat_milk"]
-    ):
-        print("Insufficient ingredients!")
-        print(WATER_TANK, COFFEE_STORAGE, OAT_MILK_TANK)
-        return False
+    for ingredient, required in recipe.items():
+        if RESOURCE_TANKS[ingredient] < required:
+            print(f"Insufficient ingredient: {ingredient}!")
+            generate_report()
+            print("Check ingredients in report file!")
+            return False
 
     return True
 
 
 def deduct_ingredients(order):
     """Consume ingredients only after a successful payment."""
-    global WATER_TANK, COFFEE_STORAGE, OAT_MILK_TANK  # pylint: disable=global-statement
     recipe = menu[order]["recipe"]
-    WATER_TANK -= recipe["water"]
-    COFFEE_STORAGE -= recipe["coffee"]
-    OAT_MILK_TANK -= recipe["oat_milk"]
+    for ingredient, required in recipe.items():
+        RESOURCE_TANKS[ingredient] -= required
 
 
 def generate_report():
     """Generate a report with the remaining contents of resources."""
     report_file = "levels.txt"
-    with open(f"{report_file}", "w", encoding="utf-8") as report:
-        print(
-            "=== Machine Storage Levels ===\n",
-            "Water: ",
-            WATER_TANK,
-            "/",
-            RESOURCE_CAPACITIES["water"],
-            "\n",
-            "Coffee: ",
-            COFFEE_STORAGE,
-            "/",
-            RESOURCE_CAPACITIES["coffee"],
-            "\n",
-            "Oat Milk: ",
-            OAT_MILK_TANK,
-            "/",
-            RESOURCE_CAPACITIES["oat_milk"],
-            file=report,
-        )
+
+    with open(report_file, "w", encoding="utf-8") as report:
+        print("=== Coffee Machine Ingredient Levels ===\n",
+              file=report)
+        for ingredient, amount in RESOURCE_TANKS.items():
+            print(
+                f"{ingredient[:1].upper()}{ingredient[1:]}: {amount}/{RESOURCE_CAPACITIES[ingredient]}",
+                file=report
+            )
+        print(f"\nMoney Earned since last emptying: {EARNED_CENTS / 100}€\n",
+            f"\n\nReport generated on {datetime.now().strftime('%B %d, %Y')} at {datetime.now().strftime('%H:%M:%S')}",
+              file=report)
     print(f"Report Generated to {report_file}")
+
+
+def replenish_tanks():
+    """Replenishes all resources of the machine"""
+    for ingredient, capacity in RESOURCE_CAPACITIES.items():
+        RESOURCE_TANKS[ingredient] = capacity
 
 
 def main():
     """Run the interactive ordering loop."""
+    replenish_tanks()
+
     while True:
         pour_coffee(display_menu())
         time.sleep(2)
