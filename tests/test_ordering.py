@@ -250,9 +250,7 @@ class TransactionTests(MachineTestCase):
         main.RESOURCE_TANKS.update(water=50, coffee=20, oat_milk=0)
         with patch("builtins.input", side_effect=["5", "4"]):
             main.pour_coffee("(2) Espresso")
-        self.assertEqual(
-            main.RESOURCE_TANKS, {"water": 0, "coffee": 0, "oat_milk": 0}
-        )
+        self.assertEqual(main.RESOURCE_TANKS, {"water": 0, "coffee": 0, "oat_milk": 0})
         with patch("builtins.input") as prompt:
             main.pour_coffee("(2) Espresso")
         prompt.assert_not_called()

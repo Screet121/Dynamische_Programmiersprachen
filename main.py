@@ -5,7 +5,11 @@ from datetime import datetime
 
 # Temporary capacities & menu; will be moved to separate file later
 MACHINE_CURRENCY = "€"
-RESOURCE_CAPACITIES = {"water": 2000, "coffee": 500, "oat_milk": 1000} # Max capacities of each ingredient. Will be moved to external config file later.
+RESOURCE_CAPACITIES = {
+    "water": 2000,
+    "coffee": 500,
+    "oat_milk": 1000,
+}  # Max capacities of each ingredient. Will be moved to external config file later.
 RESOURCE_TANKS: dict[str, int] = {}  # Actual tank levels
 
 
@@ -173,16 +177,19 @@ def generate_report():
     report_file = "levels.txt"
 
     with open(report_file, "w", encoding="utf-8") as report:
-        print("=== Coffee Machine Ingredient Levels ===\n",
-              file=report)
+        print("=== Coffee Machine Ingredient Levels ===\n", file=report)
         for ingredient, amount in RESOURCE_TANKS.items():
             print(
-                f"{ingredient[:1].upper()}{ingredient[1:]}: {amount}/{RESOURCE_CAPACITIES[ingredient]}",
-                file=report
+                f"{ingredient[:1].upper()}{ingredient[1:]}:",
+                f"{amount}/{RESOURCE_CAPACITIES[ingredient]}",
+                file=report,
             )
-        print(f"\nMoney Earned since last emptying: {EARNED_CENTS / 100}€\n",
-            f"\n\nReport generated on {datetime.now().strftime('%B %d, %Y')} at {datetime.now().strftime('%H:%M:%S')}",
-              file=report)
+        print(
+            f"\nMoney Earned since last emptying: {EARNED_CENTS / 100}€\n",
+            f"\n\nReport generated on {datetime.now().strftime('%B %d, %Y')}",
+            f"at {datetime.now().strftime('%H:%M:%S')}",
+            file=report,
+        )
     print(f"Report Generated to {report_file}")
 
 
